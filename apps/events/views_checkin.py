@@ -2,10 +2,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
+from django.contrib.auth import get_user_model
 
-from apps.accounts.models import UserProfile
+from config import settings
 from .models import Ticket, CheckInLog
+from ..users.models import TelegramAccount
 
+User = settings.AUTH_USER_MODEL
 
 class CheckInView(APIView):
     """
@@ -43,10 +46,19 @@ class CheckInView(APIView):
         checker = None
         checker_tid = request.data.get("checker_telegram_id")
         if checker_tid:
-            checker = UserProfile.objects.filter(telegram_id=checker_tid).first()
+            checked_by = None
+            checker_tid = request.data.get("checker_telegram_id")
+
+            if checker_tid:
+                acc = TelegramAccount.objects.filter(
+                    telegram_user_id=checker_tid
+                ).select_related("user").first()
+                if acc:
+                    checked_by = acc.user
+
 
         ticket.mark_used()
-        CheckInLog.objects.create(ticket=ticket, checked_by=checker)
+        CheckInLog.objects.create(ticket=ticket, checked_by=checked_by)
 
         reg = ticket.registration
         user = reg.user

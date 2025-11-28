@@ -1,9 +1,27 @@
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 import uuid
 import secrets
 
-from apps.accounts.models import UserProfile, University
+User = settings.AUTH_USER_MODEL
+
+
+class University(models.Model):
+    """
+    Университет, к которому относится студент / событие.
+    Можно расширить потом полями города, страны и т.п.
+    """
+    name = models.CharField(max_length=255)
+    short_name = models.CharField(max_length=50, blank=True)
+    city = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Университет"
+        verbose_name_plural = "Университеты"
+
+    def __str__(self) -> str:
+        return self.short_name or self.name
 
 
 class EventCategory(models.Model):
@@ -40,7 +58,7 @@ class Event(models.Model):
     )
 
     organizer = models.ForeignKey(
-        UserProfile,
+        User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -59,8 +77,14 @@ class Event(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     allowed_universities = models.ManyToManyField(
-        University, blank=True, help_text="Если visibility=inter_uni"
+        University,
+        blank=True,
+        help_text="Если visibility=inter_uni",
     )
+
+    class Meta:
+        verbose_name = "Событие"
+        verbose_name_plural = "События"
 
     def __str__(self) -> str:
         return self.title
@@ -87,12 +111,10 @@ class SeatGroup(models.Model):
     base_price = models.PositiveIntegerField()
     capacity = models.PositiveIntegerField(null=True, blank=True)
 
-    # на будущее — координаты для фронта
-    # x = models.FloatField(null=True, blank=True)
-    # y = models.FloatField(null=True, blank=True)
-
     class Meta:
         unique_together = ("event", "code")
+        verbose_name = "Группа мест"
+        verbose_name_plural = "Группы мест"
 
     def __str__(self) -> str:
         return f"{self.event.slug} {self.code}"
@@ -109,7 +131,7 @@ class Seat(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="seats")
     group = models.ForeignKey(SeatGroup, on_delete=models.CASCADE, related_name="seats")
 
-    row = models.CharField(max_length=10, blank=True)  # можно не использовать для столов
+    row = models.CharField(max_length=10, blank=True)  # для столов можно не использовать
     seat_number = models.PositiveIntegerField(null=True, blank=True)
 
     price = models.PositiveIntegerField()
@@ -119,7 +141,7 @@ class Seat(models.Model):
     )
 
     reserved_by = models.ForeignKey(
-        UserProfile,
+        User,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -129,9 +151,11 @@ class Seat(models.Model):
 
     class Meta:
         unique_together = ("event", "group", "row", "seat_number")
+        verbose_name = "Место"
+        verbose_name_plural = "Места"
 
     def __str__(self) -> str:
-        return f"{self.event.slug} {self.group.code} #{self.seat_number}"
+        return f"{self.event.slug} {self.group.code} #{self.seat_number or '-'}"
 
 
 class RegistrationStatus(models.TextChoices):
@@ -152,7 +176,11 @@ class PaymentStatus(models.TextChoices):
 
 class Registration(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="registrations")
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name="registrations")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="registrations",
+    )
 
     status = models.CharField(
         max_length=20, choices=RegistrationStatus.choices, default=RegistrationStatus.PENDING
@@ -168,6 +196,8 @@ class Registration(models.Model):
 
     class Meta:
         unique_together = ("event", "user")
+        verbose_name = "Регистрация"
+        verbose_name_plural = "Регистрации"
 
     def __str__(self) -> str:
         return f"{self.user} -> {self.event} ({self.status})"
@@ -193,6 +223,10 @@ class Ticket(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Билет"
+        verbose_name_plural = "Билеты"
+
     def mark_used(self):
         if not self.is_used:
             self.is_used = True
@@ -203,11 +237,10 @@ class Ticket(models.Model):
         return f"Ticket #{self.id} for {self.registration.user} ({self.registration.event})"
 
 
-
 class CheckInLog(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="checkins")
     checked_by = models.ForeignKey(
-        UserProfile,
+        User,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -215,6 +248,10 @@ class CheckInLog(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     note = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Чек-ин"
+        verbose_name_plural = "Чек-ины"
 
     def __str__(self) -> str:
         return f"Check-in {self.ticket_id} at {self.created_at}"

@@ -3,11 +3,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.accounts.models import UserProfile
+from config import settings
 from .models import Event, Registration, RegistrationStatus, PaymentStatus, Seat, SeatStatus, SeatGroup
 from .serializers import RegistrationSerializer, TicketSerializer, SeatSerializer
 from .models import Ticket
 
+User = settings.AUTH_USER_MODEL
 
 class EventRegisterView(APIView):
     """
@@ -26,6 +27,7 @@ class EventRegisterView(APIView):
 
     @transaction.atomic
     def post(self, request, slug: str):
+        user = request.user
         try:
             event = Event.objects.get(slug=slug, is_active=True)
         except Event.DoesNotExist:
@@ -38,14 +40,6 @@ class EventRegisterView(APIView):
         if not telegram_id or not full_name:
             return Response({"detail": "telegram_id and full_name are required"}, status=400)
 
-        user, _ = UserProfile.objects.get_or_create(
-            telegram_id=telegram_id,
-            defaults={
-                "telegram_username": data.get("telegram_username", ""),
-                "full_name": full_name,
-                "phone": data.get("phone", ""),
-            },
-        )
 
         registration, created = Registration.objects.get_or_create(
             event=event,

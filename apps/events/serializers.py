@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from config import settings
 from .models import (
     Event,
     EventCategory,
@@ -7,7 +9,7 @@ from .models import (
     Registration,
     Ticket,
 )
-from apps.accounts.models import UserProfile
+User = settings.AUTH_USER_MODEL
 
 
 class EventCategorySerializer(serializers.ModelSerializer):
